@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Created with Inkscape (http://www.inkscape.org/) -->
+
+<svg
+   width="800mm"
+   height="480mm"
+   viewBox="0 0 800 480"
+   version="1.1"
+   id="svg1"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <defs
+     id="defs1">
+    <rect
+       x="261.60416"
+       y="827.62042"
+       width="409.05377"
+       height="85.615906"
+       id="rect2" />
+  </defs>
+  <g
+     id="layer1">
+    <rect
+       style="fill:#000000;stroke:#000000;stroke-width:0;stroke-linecap:round"
+       id="rect1"
+       width="702.22882"
+       height="254.21185"
+       x="46.563557"
+       y="117.03813" />
+    <text
+       xml:space="preserve"
+       style="font-weight:300;font-size:17.6389px;line-height:1;font-family:DejaVuSans-56;-inkscape-font-specification:'DejaVuSans-56 Light';fill:#ffffff;stroke:#000000;stroke-width:0;stroke-linecap:round"
+       x="132.13983"
+       y="237.8517"
+       id="text3"><tspan
+         id="tspan3"
+         style="fill:#ffffff;stroke-width:0"
+         x="132.13983"
+         y="237.8517">PLACEHOLDER</tspan></text>
+  </g>
+</svg>

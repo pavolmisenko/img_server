@@ -1,0 +1,12 @@
+[package]
+name = "img_server"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+axum = "0.8.8"
+image = "0.25.9"
+resvg = "0.46.0"
+tiny-skia = "0.11.4"
+tokio = { version = "1.49.0", features = ["macros", "rt-multi-thread"] }
+usvg = "0.46.0"
