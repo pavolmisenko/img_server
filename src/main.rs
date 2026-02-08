@@ -1,8 +1,8 @@
 use axum::{
-    routing::get,
     Router,
+    http::{StatusCode, header},
     response::{IntoResponse, Response},
-    http::{header, StatusCode},
+    routing::get,
 };
 use std::net::SocketAddr;
 
@@ -10,35 +10,40 @@ use std::net::SocketAddr;
 #[path = "svg-process.rs"]
 mod svg_process;
 
-#[tokio::main]
-async fn main() {
-    // Build our application with a single route
-    let app = Router::new()
-        .route("/path/refresh_image", get(refresh_image));
+// #[tokio::main]
+// async fn main() {
+//     // Build our application with a single route
+//     let app = Router::new().route("/path/refresh_image", get(refresh_image));
 
-    // Run it
-    let addr = SocketAddr::from(([127, 0, 0, 1], 3000));
-    println!("listening on {}", addr);
-    let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
-    axum::serve(listener, app).await.unwrap();
-}
+//     // Run it
+//     let addr = SocketAddr::from(([127, 0, 0, 1], 3000));
+//     println!("listening on {}", addr);
+//     let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
+//     axum::serve(listener, app).await.unwrap();
+// }
 
-async fn refresh_image() -> Response {
-    match svg_process::generate_image() {
-        Ok(image_data) => {
-            (
-                StatusCode::OK,
-                // BMP content type
-                [(header::CONTENT_TYPE, "image/bmp")],
-                image_data
-            ).into_response()
-        },
-        Err(e) => {
-            eprintln!("Error generating image: {}", e);
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                "Failed to generate image"
-            ).into_response()
-        }
-    }
+// async fn refresh_image() -> Response {
+//     match svg_process::generate_image() {
+//         Ok(image_data) => {
+//             (
+//                 StatusCode::OK,
+//                 // BMP content type
+//                 [(header::CONTENT_TYPE, "image/bmp")],
+//                 image_data,
+//             )
+//                 .into_response()
+//         }
+//         Err(e) => {
+//             eprintln!("Error generating image: {}", e);
+//             (
+//                 StatusCode::INTERNAL_SERVER_ERROR,
+//                 "Failed to generate image",
+//             )
+//                 .into_response()
+//         }
+//     }
+// }
+
+fn main() {
+    svg_process::generate_image().unwrap();
 }
