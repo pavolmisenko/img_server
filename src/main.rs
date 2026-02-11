@@ -45,5 +45,7 @@ mod svg_process;
 // }
 
 fn main() {
-    svg_process::generate_image().unwrap();
+    // Save image
+    let image_data = svg_process::generate_image().unwrap();
+    std::fs::write("output.bmp", image_data).unwrap();
 }

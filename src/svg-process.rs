@@ -17,7 +17,7 @@ pub fn generate_image() -> Result<Vec<u8>, Box<dyn std::error::Error>> {
 
 
     //
-    let processed_svg = svg_content.replace("PLACEHOLDER", "REPLACED_TEXT");
+    let processed_svg = svg_content.replace("{{Den}}", "Pondelol").replace("{{Teplota}}", "15°C");
 
     // Parse SVG
     let mut fontdb = usvg::fontdb::Database::new();
