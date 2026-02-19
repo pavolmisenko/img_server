@@ -1,5 +1,7 @@
 use image::ImageEncoder;
+use open_meteo_rs::forecast::ForecastResult;
 use regex::Regex;
+use std::collections::HashMap;
 use std::fs;
 use std::io::Cursor;
 use std::path::Path;
@@ -10,45 +12,80 @@ use usvg::{Options, Tree};
 // Display template
 const TEMPLATE_SVG_PATH: &str = "weather_template.svg";
 
-// Icons templates
-const CLOUD_SNOW: &str = "cloud_snow.svg";
-const CLOUD_RAIN: &str = "cloud_rain.svg";
+// Descriptions / icon mapping
+const DESCRIPTIONS_PATH: &str = "descriptions.json";
+const FALLBACK_ICON: &str = "icons/cloud_rain_heavy.svg";
 
-pub fn generate_image() -> Result<Vec<u8>, Box<dyn std::error::Error>> {
+/// Fetches weather data and fills the SVG template, returning the processed SVG string.
+pub async fn build_weather_svg(lat: f64, lng: f64, location: &str) -> Result<String, Box<dyn std::error::Error>> {
     // Read template.svg
     let template_path = Path::new(TEMPLATE_SVG_PATH);
     let svg_content = fs::read_to_string(template_path)?;
 
-    // TBD - download weather data and process it (use open-meteo-rs crate)
+    // Fetch weather data from open-meteo
+    let weather = fetch_weather(lat, lng).await?;
 
-    // Replace text placeholders
-    let mut processed_svg = svg_content
-        .replace("{{Den}}", "Pondelol")
-        .replace("{{Teplota}}", "15°C");
+    let daily = weather.daily.as_deref().unwrap_or(&[]);
+    let icon_map = load_icon_map()?;
 
-    // Replace the day1-icon rectangle with the snow icon
-    processed_svg = replace_rect_with_svg(&processed_svg, "day1-icon", "snow-icon.svg")?;
+    // Replace location placeholder
+    let mut processed_svg = svg_content.replace("{{location}}", location);
 
-    // Parse SVG
+    // Fill in day0..day6 placeholders from daily forecast
+    for (i, day) in daily.iter().enumerate().take(7) {
+        let weather_code = day
+            .values
+            .get("weather_code")
+            .and_then(|item| item.value.as_f64())
+            .unwrap_or(0.0) as u32;
+        let temp_max = day
+            .values
+            .get("temperature_2m_max")
+            .and_then(|item| item.value.as_f64())
+            .unwrap_or(0.0);
+        let temp_min = day
+            .values
+            .get("temperature_2m_min")
+            .and_then(|item| item.value.as_f64())
+            .unwrap_or(0.0);
+
+        let day_name = day.date.format("%a").to_string();
+        let icon = weather_code_to_icon(weather_code, &icon_map);
+        let prefix = format!("day{}", i);
+
+        processed_svg = processed_svg
+            .replace(&format!("{{{{{}-day}}}}", prefix), &day_name)
+            .replace(
+                &format!("{{{{{}-minmax}}}}", prefix),
+                &format!("{:.0}°C / {:.0}°C", temp_max, temp_min),
+            );
+
+        let icon_rect_id = format!("{}-icon", prefix);
+        processed_svg = replace_rect_with_svg(&processed_svg, &icon_rect_id, icon)?;
+    }
+
+    Ok(processed_svg)
+}
+
+/// Renders an SVG string to a BMP-encoded byte buffer.
+///
+/// tiny-skia uses premultiplied RGBA8888. For opaque images (common here)
+/// this is equivalent to straight alpha, so no explicit demultiplication is needed.
+/// The `image` crate encodes the result as a BMP compatible with embedded_graphics tinybmp.
+pub fn svg_to_bmp(svg_content: &str) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
     let mut fontdb = usvg::fontdb::Database::new();
     fontdb.load_system_fonts();
 
     let mut opt = Options::default();
     opt.fontdb = Arc::new(fontdb);
 
-    let tree = Tree::from_str(&processed_svg, &opt)?;
+    let tree = Tree::from_str(svg_content, &opt)?;
 
-    // Render to Pixmap
     let size = tree.size().to_int_size();
     let mut pixmap = Pixmap::new(size.width(), size.height()).ok_or("Failed to create pixmap")?;
 
     resvg::render(&tree, Transform::default(), &mut pixmap.as_mut());
 
-    // Convert to BMP
-    // tiny-skia utilizes premultiplied RGBA8888.
-    // Ideally, we should demultiply, but efficient demultiplication is non-trivial without extra deps
-    // or iteration. For opaque images (common in this usecase), it's identical.
-    // We use the `image` crate to encode to BMP, which is compatible with embedded_graphics tinybmp.
     let mut bmp_data = Vec::new();
     let mut cursor = Cursor::new(&mut bmp_data);
 
@@ -63,6 +100,49 @@ pub fn generate_image() -> Result<Vec<u8>, Box<dyn std::error::Error>> {
     Ok(bmp_data)
 }
 
+/// Fetches weather forecast data from open-meteo for the given coordinates.
+async fn fetch_weather(lat: f64, lng: f64) -> Result<ForecastResult, Box<dyn std::error::Error>> {
+    let client = open_meteo_rs::Client::new();
+    let mut opts = open_meteo_rs::forecast::Options::default();
+
+    opts.location = open_meteo_rs::Location { lat, lng };
+
+    // Timezone
+    opts.time_zone = Some("Europe/Berlin".into());
+
+    // Daily weather fields
+    opts.daily.push("temperature_2m_max".into());
+    opts.daily.push("temperature_2m_min".into());
+    opts.daily.push("weather_code".into());
+
+    let res = client.forecast(opts).await?;
+    Ok(res)
+}
+
+/// Loads the weather code → icon path mapping from descriptions.json.
+fn load_icon_map() -> Result<HashMap<u32, String>, Box<dyn std::error::Error>> {
+    let content = fs::read_to_string(DESCRIPTIONS_PATH)?;
+    let json: serde_json::Value = serde_json::from_str(&content)?;
+    let mut map = HashMap::new();
+    if let Some(obj) = json.as_object() {
+        for (key, val) in obj {
+            if let Ok(code) = key.parse::<u32>() {
+                if let Some(image) = val.pointer("/day/image").and_then(|v| v.as_str()) {
+                    map.insert(code, image.to_string());
+                }
+            }
+        }
+    }
+    Ok(map)
+}
+
+/// Returns the icon SVG path for the given WMO weather code, falling back to FALLBACK_ICON.
+fn weather_code_to_icon<'a>(code: u32, icon_map: &'a HashMap<u32, String>) -> &'a str {
+    icon_map
+        .get(&code)
+        .map(|s| s.as_str())
+        .unwrap_or(FALLBACK_ICON)
+}
 
 /// Replaces a rectangle element with an SVG icon, scaled to match the rectangle's dimensions
 fn replace_rect_with_svg(
@@ -124,7 +204,7 @@ fn extract_attribute(element: &str, attr_name: &str) -> Result<String, Box<dyn s
     // e.g., avoid matching "stroke-width" when looking for "width"
     let pattern = format!(r#"[\s]{}=["']([^"']+)["']"#, regex::escape(attr_name));
     let regex = Regex::new(&pattern)?;
-    
+
     regex
         .captures(element)
         .and_then(|cap| cap.get(1))
