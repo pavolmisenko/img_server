@@ -1,6 +1,7 @@
 use image::ImageEncoder;
-use open_meteo_rs::forecast::ForecastResult;
+use chrono::{Datelike, NaiveDate};
 use regex::Regex;
+use serde_json::Value;
 use std::collections::HashMap;
 use std::fs;
 use std::io::Cursor;
@@ -8,6 +9,7 @@ use std::path::Path;
 use std::sync::Arc;
 use tiny_skia::{Pixmap, Transform};
 use usvg::{Options, Tree};
+use plotters::prelude::*;
 
 // Display template
 const TEMPLATE_SVG_PATH: &str = "weather_template.svg";
@@ -24,40 +26,63 @@ pub async fn build_weather_svg(lat: f64, lng: f64, location: &str) -> Result<Str
 
     // Fetch weather data from open-meteo
     let weather = fetch_weather(lat, lng).await?;
-
-    let daily = weather.daily.as_deref().unwrap_or(&[]);
     let icon_map = load_icon_map()?;
 
     // Replace location placeholder
-    let mut processed_svg = svg_content.replace("{{location}}", location);
+    let mut processed_svg = svg_content;
 
-    // Fill in day0..day6 placeholders from daily forecast
-    for (i, day) in daily.iter().enumerate().take(7) {
-        let weather_code = day
-            .values
-            .get("weather_code")
-            .and_then(|item| item.value.as_f64())
-            .unwrap_or(0.0) as u32;
-        let temp_max = day
-            .values
-            .get("temperature_2m_max")
-            .and_then(|item| item.value.as_f64())
-            .unwrap_or(0.0);
-        let temp_min = day
-            .values
-            .get("temperature_2m_min")
-            .and_then(|item| item.value.as_f64())
-            .unwrap_or(0.0);
+    // Current weather values
+    let current_temp = get_number(&weather, &["current", "temperature_2m"]).unwrap_or(0.0);
+    let current_apparent = get_number(&weather, &["current", "apparent_temperature"]).unwrap_or(current_temp);
+    let current_code = get_number(&weather, &["current", "weather_code"]).unwrap_or(0.0) as u32;
 
-        let day_name = day.date.format("%a").to_string();
+    let today_max = get_daily_number(&weather, "temperature_2m_max", 0).unwrap_or(0.0);
+    let today_min = get_daily_number(&weather, "temperature_2m_min", 0).unwrap_or(0.0);
+
+    let day_label = get_daily_string(&weather, "time", 0)
+        .and_then(|d| parse_weekday_short(&d))
+        .unwrap_or_else(|| "Today".to_string());
+
+    processed_svg = processed_svg
+        .replace("{{location-day}}", &format!("{location}, {day_label}"))
+        .replace("{{tmp}}", &format!("{:.0}°C", current_temp))
+        .replace("{{tmp-fl}}", &format!("Feels like {:.0}°C", current_apparent))
+        .replace("{{minmax}}", &format!("High {:.0}°C   Low {:.0}°C", today_max, today_min));
+
+    let actual_icon = weather_code_to_icon(current_code, &icon_map);
+    processed_svg = if processed_svg.contains("id=\"actual-icon\"") {
+        replace_rect_with_svg(&processed_svg, "actual-icon", actual_icon)?
+    } else {
+        replace_rect_with_svg(&processed_svg, "day0-icon", actual_icon)?
+    };
+
+    plot("plot.svg").unwrap();
+    processed_svg = replace_rect_with_svg(&processed_svg, "today-plot", "plot.svg").unwrap();
+
+
+    // Fill in day1..day7 placeholders from daily forecast (day1 = tomorrow)
+    for day_num in 1..=7 {
+        let temp_max = get_daily_number(&weather, "temperature_2m_max", day_num).unwrap_or(0.0);
+        let temp_min = get_daily_number(&weather, "temperature_2m_min", day_num).unwrap_or(0.0);
+        let weather_code = get_daily_number(&weather, "weather_code", day_num).unwrap_or(0.0) as u32;
+        let precip_mm = get_daily_number(&weather, "precipitation_sum", day_num).unwrap_or(0.0);
+        let precip_pct = get_daily_number(&weather, "precipitation_probability_max", day_num).unwrap_or(0.0);
+
+        let day_name = get_daily_string(&weather, "time", day_num)
+            .and_then(|d| parse_weekday_short(&d))
+            .unwrap_or_else(|| "--".to_string());
         let icon = weather_code_to_icon(weather_code, &icon_map);
-        let prefix = format!("day{}", i);
+        let prefix = format!("day{}", day_num);
 
         processed_svg = processed_svg
             .replace(&format!("{{{{{}-day}}}}", prefix), &day_name)
             .replace(
                 &format!("{{{{{}-minmax}}}}", prefix),
                 &format!("{:.0}°C / {:.0}°C", temp_max, temp_min),
+            )
+            .replace(
+                &format!("{{{{{}-precip}}}}", prefix),
+                &format!("{:.0}% [{:.1}]", precip_pct, precip_mm),
             );
 
         let icon_rect_id = format!("{}-icon", prefix);
@@ -101,22 +126,65 @@ pub fn svg_to_bmp(svg_content: &str) -> Result<Vec<u8>, Box<dyn std::error::Erro
 }
 
 /// Fetches weather forecast data from open-meteo for the given coordinates.
-async fn fetch_weather(lat: f64, lng: f64) -> Result<ForecastResult, Box<dyn std::error::Error>> {
-    let client = open_meteo_rs::Client::new();
-    let mut opts = open_meteo_rs::forecast::Options::default();
+async fn fetch_weather(lat: f64, lng: f64) -> Result<Value, Box<dyn std::error::Error>> {
+    let client = reqwest::Client::new();
+    let url = "https://api.open-meteo.com/v1/forecast";
 
-    opts.location = open_meteo_rs::Location { lat, lng };
+    let response = client
+        .get(url)
+        .query(&[
+            ("latitude", lat.to_string()),
+            ("longitude", lng.to_string()),
+            ("forecast_days", "8".to_string()),
+            (
+                "daily",
+                "temperature_2m_max,temperature_2m_min,precipitation_sum,weather_code,precipitation_probability_max".to_string(),
+            ),
+            (
+                "current",
+                "relative_humidity_2m,temperature_2m,apparent_temperature,weather_code".to_string(),
+            ),
+            (
+                "hourly",
+                "temperature_2m,precipitation_probability,precipitation".to_string(),
+            ),
+            ("timezone", "auto".to_string()),
+        ])
+        .send()
+        .await?
+        .error_for_status()?;
 
-    // Timezone
-    opts.time_zone = Some("Europe/Berlin".into());
+    Ok(response.json::<Value>().await?)
+}
 
-    // Daily weather fields
-    opts.daily.push("temperature_2m_max".into());
-    opts.daily.push("temperature_2m_min".into());
-    opts.daily.push("weather_code".into());
+fn get_number(json: &Value, path: &[&str]) -> Option<f64> {
+    let mut node = json;
+    for segment in path {
+        node = node.get(*segment)?;
+    }
+    node.as_f64()
+}
 
-    let res = client.forecast(opts).await?;
-    Ok(res)
+fn get_daily_number(json: &Value, key: &str, idx: usize) -> Option<f64> {
+    json.get("daily")?
+        .get(key)?
+        .as_array()?
+        .get(idx)?
+        .as_f64()
+}
+
+fn get_daily_string(json: &Value, key: &str, idx: usize) -> Option<String> {
+    json.get("daily")?
+        .get(key)?
+        .as_array()?
+        .get(idx)?
+        .as_str()
+        .map(ToString::to_string)
+}
+
+fn parse_weekday_short(date_str: &str) -> Option<String> {
+    let date = NaiveDate::parse_from_str(date_str, "%Y-%m-%d").ok()?;
+    Some(date.weekday().to_string().chars().take(3).collect())
 }
 
 /// Loads the weather code → icon path mapping from descriptions.json.
@@ -210,4 +278,41 @@ fn extract_attribute(element: &str, attr_name: &str) -> Result<String, Box<dyn s
         .and_then(|cap| cap.get(1))
         .map(|m| m.as_str().trim_end_matches("px").to_string())
         .ok_or_else(|| format!("Attribute '{}' not found", attr_name).into())
+}
+
+fn plot(plot_path: &str) -> Result<(), Box<dyn std::error::Error>> {
+    let root = SVGBackend::new(plot_path, (770, 130)).into_drawing_area();
+
+    root.fill(&WHITE)?;
+
+    let mut chart = ChartBuilder::on(&root)
+        .x_label_area_size(10)
+        .y_label_area_size(10)
+        //.margin(5)
+        //.caption("Histogram Test", ("sans-serif", 50.0))
+        .build_cartesian_2d((0u32..10u32).into_segmented(), 0u32..10u32)?;
+
+    chart
+        .configure_mesh()
+        .disable_x_mesh()
+        .disable_y_mesh()
+        .bold_line_style(WHITE.mix(0.3))
+        //.y_desc("Count")
+        //.x_desc("Bucket")
+        .axis_desc_style(("sans-serif", 15))
+        .draw()?;
+
+    let data = [
+        0u32, 1, 1, 1, 4, 2, 5, 7, 8, 6, 4, 2, 1, 8, 3, 3, 3, 4, 4, 3, 3, 3,
+    ];
+
+    chart.draw_series(
+        Histogram::vertical(&chart)
+            .style(RED.mix(0.5).filled())
+            .data(data.iter().map(|x: &u32| (*x, 1))),
+    )?;
+
+    root.present().expect("Unable to write result to file");
+
+    Ok(())
 }
