@@ -8,7 +8,7 @@
    id="svg_document"
    style="zoom: 1;"
    sodipodi:docname="weather_template.svg"
-   inkscape:version="1.3.2 (091e20e, 2023-11-25)"
+   inkscape:version="1.4.3 (0d15f75, 2025-12-25)"
    xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
    xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
    xmlns="http://www.w3.org/2000/svg"
@@ -23,27 +23,36 @@
      inkscape:pagecheckerboard="0"
      inkscape:deskcolor="#d1d1d1"
      inkscape:zoom="0.81018971"
-     inkscape:cx="335.1067"
-     inkscape:cy="153.66771"
-     inkscape:window-width="1440"
-     inkscape:window-height="786"
+     inkscape:cx="320.91249"
+     inkscape:cy="145.6449"
+     inkscape:window-width="1590"
+     inkscape:window-height="1089"
      inkscape:window-x="0"
-     inkscape:window-y="25"
-     inkscape:window-maximized="1"
-     inkscape:current-layer="svg_document" />
+     inkscape:window-y="30"
+     inkscape:window-maximized="0"
+     inkscape:current-layer="svg_document"
+     showguides="false" />
   <!-- Created with macSVG - https://macsvg.org/ - https://github.com/dsward2/macsvg/ -->
   <title
      id="svg_document_title">Untitled.svg</title>
   <defs
-     id="svg_document_defs" />
+     id="svg_document_defs">
+    <rect
+       x="-385.09499"
+       y="-185.14182"
+       width="359.17514"
+       height="435.70042"
+       id="rect6" />
+  </defs>
   <g
-     id="main_group">
+     id="main_group"
+     transform="scale(1,1.2)">
     <rect
        x="0"
-       height="400px"
-       y="0px"
+       height="400"
+       y="0"
        id="background_rect"
-       width="800px"
+       width="800"
        fill="#ffffff" />
   </g>
   <rect
@@ -107,29 +116,65 @@
        text-anchor="middle">{{day0-minmax}}</text>
   </g>
   <g
+     id="g3-3-5-6-5"
+     transform="matrix(0.99648118,0,0,1.0026279,667.737,100.37407)"
+     inkscape:label="day7">
+    <g
+       id="g2-8-5-2-9">
+      <rect
+         stroke="#000000"
+         x="13.710733"
+         height="98.857689"
+         y="240.78804"
+         id="day7-icon"
+         stroke-width="2.80886px"
+         width="97.888451"
+         fill="#ffffff"
+         inkscape:label="day7-icon" />
+      <text
+         stroke="none"
+         id="text4-4-8-2-3"
+         stroke-width="1px"
+         x="65"
+         text-rendering="geometricPrecision"
+         font-family="Helvetica"
+         fill="#000000"
+         font-size="15px"
+         y="230"
+         text-anchor="middle">{{day7-day}}</text>
+      <text
+         stroke="none"
+         id="text5-8-8-2-0"
+         stroke-width="1px"
+         x="65"
+         text-rendering="geometricPrecision"
+         font-family="Helvetica"
+         fill="#000000"
+         font-size="17px"
+         y="370"
+         text-anchor="middle"
+         inkscape:label="text5-8-8-2">{{day7-minmax}}</text>
+      <text
+         xml:space="preserve"
+         transform="matrix(1.0035312,0,0,1.0166655,-655.57032,-106.28267)"
+         id="text6"
+         style="writing-mode:lr-tb;direction:ltr;white-space:pre;shape-inside:url(#rect6);fill:#000000" />
+    </g>
+  </g>
+  <g
      id="g3-3-5-6"
-     transform="translate(650.0083)"
-     inkscape:label="day6"
-     style="zoom:1">
+     transform="matrix(0.99648118,0,0,1.0026279,557.737,100.37407)"
+     inkscape:label="day6">
     <g
        id="g2-8-5-2">
       <rect
          stroke="#000000"
-         x="10"
-         height="180"
-         y="210"
-         id="rect4-0-4-2"
-         stroke-width="3px"
-         width="110"
-         fill="#ffffff" />
-      <rect
-         stroke="#000000"
-         x="10"
-         height="100"
-         y="240"
+         x="13.710733"
+         height="98.857689"
+         y="240.78804"
          id="day6-icon"
-         stroke-width="3px"
-         width="110"
+         stroke-width="2.80886px"
+         width="97.544258"
          fill="#ffffff"
          inkscape:label="day6-icon" />
       <text
@@ -158,79 +203,20 @@
     </g>
   </g>
   <g
-     id="g3-3-5"
-     transform="translate(390.0083)"
-     inkscape:label="day4">
-    <g
-       id="g2-8-5">
-      <rect
-         stroke="#000000"
-         x="10"
-         height="180"
-         y="210"
-         id="rect4-0-4"
-         stroke-width="3px"
-         width="110"
-         fill="#ffffff" />
-      <rect
-         stroke="#000000"
-         x="10"
-         height="100"
-         y="240"
-         id="day4-icon"
-         stroke-width="3px"
-         width="110"
-         fill="#ffffff"
-         inkscape:label="day4-icon" />
-      <text
-         stroke="none"
-         id="text4-4-8"
-         stroke-width="1px"
-         x="65"
-         text-rendering="geometricPrecision"
-         font-family="Helvetica"
-         fill="#000000"
-         font-size="15px"
-         y="230"
-         text-anchor="middle">{{day4-day}}</text>
-      <text
-         stroke="none"
-         id="text5-8-8"
-         stroke-width="1px"
-         x="65"
-         text-rendering="geometricPrecision"
-         font-family="Helvetica"
-         fill="#000000"
-         font-size="17px"
-         y="370"
-         text-anchor="middle">{{day4-minmax}}</text>
-    </g>
-  </g>
-  <g
      id="g3-3-5-0"
-     transform="translate(519.28426)"
+     transform="matrix(0.99648118,0,0,1.0026279,447.737,100.37407)"
      inkscape:label="day5">
     <g
        id="g2-8-5-3"
        inkscape:label="g2-8-5-3">
       <rect
          stroke="#000000"
-         x="10"
-         height="180"
-         y="210"
-         id="rect4-0-4-0"
-         stroke-width="3px"
-         width="110"
-         fill="#ffffff"
-         inkscape:label="rect4-0-4-0" />
-      <rect
-         stroke="#000000"
-         x="10"
-         height="100"
-         y="240"
+         x="13.710733"
+         height="98.857689"
+         y="240.78804"
          id="day5-icon"
-         stroke-width="3px"
-         width="110"
+         stroke-width="2.80886px"
+         width="97.544258"
          fill="#ffffff"
          inkscape:label="day5-icon" />
       <text
@@ -261,29 +247,59 @@
     </g>
   </g>
   <g
+     id="g3-3-5"
+     transform="matrix(0.99648118,0,0,1.0026279,337.737,100.37407)"
+     inkscape:label="day4">
+    <g
+       id="g2-8-5">
+      <rect
+         stroke="#000000"
+         x="13.710733"
+         height="98.857689"
+         y="240.78804"
+         id="day4-icon"
+         stroke-width="2.80886px"
+         width="97.544258"
+         fill="#ffffff"
+         inkscape:label="day4-icon" />
+      <text
+         stroke="none"
+         id="text4-4-8"
+         stroke-width="1px"
+         x="65"
+         text-rendering="geometricPrecision"
+         font-family="Helvetica"
+         fill="#000000"
+         font-size="15px"
+         y="230"
+         text-anchor="middle">{{day4-day}}</text>
+      <text
+         stroke="none"
+         id="text5-8-8"
+         stroke-width="1px"
+         x="65"
+         text-rendering="geometricPrecision"
+         font-family="Helvetica"
+         fill="#000000"
+         font-size="17px"
+         y="370"
+         text-anchor="middle">{{day4-minmax}}</text>
+    </g>
+  </g>
+  <g
      id="g3-3-4"
-     transform="translate(260.0083)"
-     inkscape:label="day3"
-     style="zoom:1">
+     transform="matrix(0.99648118,0,0,1.0026279,227.737,100.37407)"
+     inkscape:label="day3">
     <g
        id="g2-8-8">
       <rect
          stroke="#000000"
-         x="10"
-         height="180"
-         y="210"
-         id="rect4-0-0"
-         stroke-width="3px"
-         width="110"
-         fill="#ffffff" />
-      <rect
-         stroke="#000000"
-         x="10"
-         height="100"
-         y="240"
+         x="13.710733"
+         height="98.857689"
+         y="240.78804"
          id="day3-icon"
-         stroke-width="3px"
-         width="110"
+         stroke-width="2.80886px"
+         width="97.544258"
          fill="#ffffff"
          inkscape:label="day3-icon" />
       <text
@@ -312,28 +328,18 @@
   </g>
   <g
      id="g3-3"
-     transform="translate(130.0083)"
-     inkscape:label="day2"
-     style="zoom:1">
+     transform="matrix(0.99648118,0,0,1.0026279,117.737,100.37407)"
+     inkscape:label="day2">
     <g
        id="g2-8">
       <rect
          stroke="#000000"
-         x="10"
-         height="180"
-         y="210"
-         id="rect4-0"
-         stroke-width="3px"
-         width="110"
-         fill="#ffffff" />
-      <rect
-         stroke="#000000"
-         x="10"
-         height="100"
-         y="240"
+         x="13.710739"
+         height="98.857712"
+         y="240.78804"
          id="day2-icon"
-         stroke-width="3px"
-         width="110"
+         stroke-width="2.80887px"
+         width="97.544258"
          fill="#ffffff"
          inkscape:label="day2-icon" />
       <text
@@ -362,28 +368,18 @@
   </g>
   <g
      id="g3"
-     transform="translate(0.00830078)"
-     inkscape:label="day1"
-     style="zoom:1">
+     transform="matrix(0.99648118,0,0,1.0026279,7.7369951,100.37407)"
+     inkscape:label="day1">
     <g
        id="g1">
       <rect
          stroke="#000000"
-         x="10"
-         height="180"
-         y="210"
-         id="rect4"
-         stroke-width="3px"
-         width="110"
-         fill="#ffffff" />
-      <rect
-         stroke="#000000"
-         x="10"
-         height="100"
-         y="240"
+         x="13.710738"
+         height="98.857712"
+         y="240.78804"
          id="day1-icon"
-         stroke-width="3px"
-         width="110"
+         stroke-width="2.80886px"
+         width="97.544258"
          fill="#ffffff"
          inkscape:label="day1-icon" />
       <text
