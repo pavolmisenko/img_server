@@ -29,8 +29,8 @@
      inkscape:window-height="953"
      inkscape:window-x="0"
      inkscape:window-y="1474"
-     inkscape:window-maximized="1"
-     inkscape:current-layer="svg_document" />
+     inkscape:window-maximized="0"
+     inkscape:current-layer="g1-6-0" />
   <!-- Created with macSVG - https://macsvg.org/ - https://github.com/dsward2/macsvg/ -->
   <title
      id="svg_document_title">Untitled.svg</title>
@@ -146,7 +146,7 @@
          stroke="#000000"
          x="13.710738"
          height="98.857712"
-         y="236.79854"
+         y="240.78804"
          id="day1-icon"
          stroke-width="2.80886px"
          width="97.544258"
@@ -160,7 +160,7 @@
          font-family="Helvetica"
          fill="#000000"
          font-size="15px"
-         y="233.9895"
+         y="241.96851"
          text-anchor="middle"
          style="font-size:17.3411px;text-align:center;text-anchor:middle"><tspan
            style="font-weight:bold;direction:ltr"
@@ -202,7 +202,7 @@
          stroke="#000000"
          x="13.710738"
          height="98.857712"
-         y="236.79854"
+         y="240.78804"
          id="day2-icon"
          stroke-width="2.80886px"
          width="97.544258"
@@ -216,7 +216,7 @@
          font-family="Helvetica"
          fill="#000000"
          font-size="15px"
-         y="233.9895"
+         y="241.96851"
          text-anchor="middle"
          style="font-size:17.3411px;text-align:center;text-anchor:middle"><tspan
            style="font-weight:bold;direction:ltr"
@@ -258,7 +258,7 @@
          stroke="#000000"
          x="13.710738"
          height="98.857712"
-         y="236.79854"
+         y="240.78804"
          id="day3-icon"
          stroke-width="2.80886px"
          width="97.544258"
@@ -272,7 +272,7 @@
          font-family="Helvetica"
          fill="#000000"
          font-size="15px"
-         y="233.9895"
+         y="241.96851"
          text-anchor="middle"
          style="font-size:17.3411px;text-align:center;text-anchor:middle"><tspan
            style="font-weight:bold;direction:ltr"
@@ -314,7 +314,7 @@
          stroke="#000000"
          x="13.710738"
          height="98.857712"
-         y="236.79854"
+         y="240.78804"
          id="day4-icon"
          stroke-width="2.80886px"
          width="97.544258"
@@ -328,7 +328,7 @@
          font-family="Helvetica"
          fill="#000000"
          font-size="15px"
-         y="233.9895"
+         y="237.979"
          text-anchor="middle"
          style="font-size:17.3411px;text-align:center;text-anchor:middle"><tspan
            style="font-weight:bold;direction:ltr"
@@ -370,7 +370,7 @@
          stroke="#000000"
          x="13.710738"
          height="98.857712"
-         y="236.79854"
+         y="240.78804"
          id="day5-icon"
          stroke-width="2.80886px"
          width="97.544258"
@@ -384,7 +384,7 @@
          font-family="Helvetica"
          fill="#000000"
          font-size="15px"
-         y="233.9895"
+         y="237.979"
          text-anchor="middle"
          style="font-size:17.3411px;text-align:center;text-anchor:middle"><tspan
            style="font-weight:bold;direction:ltr"
@@ -426,7 +426,7 @@
          stroke="#000000"
          x="13.710738"
          height="98.857712"
-         y="236.79854"
+         y="240.78804"
          id="day6-icon"
          stroke-width="2.80886px"
          width="97.544258"
@@ -440,7 +440,7 @@
          font-family="Helvetica"
          fill="#000000"
          font-size="15px"
-         y="233.9895"
+         y="237.979"
          text-anchor="middle"
          style="font-size:17.3411px;text-align:center;text-anchor:middle"><tspan
            style="font-weight:bold;direction:ltr"
@@ -482,7 +482,7 @@
          stroke="#000000"
          x="13.710738"
          height="98.857712"
-         y="236.79854"
+         y="240.78804"
          id="day7-icon"
          stroke-width="2.80886px"
          width="97.544258"
@@ -496,7 +496,7 @@
          font-family="Helvetica"
          fill="#000000"
          font-size="15px"
-         y="233.9895"
+         y="237.979"
          text-anchor="middle"
          style="font-size:17.3411px;text-align:center;text-anchor:middle"><tspan
            style="font-weight:bold;direction:ltr"

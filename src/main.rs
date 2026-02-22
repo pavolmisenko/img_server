@@ -21,8 +21,7 @@ struct BitmapParams {
 
 #[tokio::main]
 async fn main() {
-    let app = Router::new()
-        .route("/fetch_bitmap", get(fetch_bitmap));
+    let app = Router::new().route("/fetch_bitmap", get(fetch_bitmap));
 
     // Bind to all interfaces so devices on the LAN can reach this server
     let addr = SocketAddr::from(([0, 0, 0, 0], 3000));

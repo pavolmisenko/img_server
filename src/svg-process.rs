@@ -1,5 +1,6 @@
-use image::ImageEncoder;
 use chrono::{Datelike, NaiveDate, NaiveDateTime};
+use image::ImageEncoder;
+use plotters::prelude::*;
 use regex::Regex;
 use serde_json::Value;
 use std::collections::HashMap;
@@ -9,17 +10,23 @@ use std::path::Path;
 use std::sync::Arc;
 use tiny_skia::{Pixmap, Transform};
 use usvg::{Options, Tree};
-use plotters::prelude::*;
 
 // Display template
 const TEMPLATE_SVG_PATH: &str = "weather_template.svg";
+
+// 24 hour plot
+const PLOT_SVG_PATH: &str = "plot.svg";
 
 // Descriptions / icon mapping
 const DESCRIPTIONS_PATH: &str = "descriptions.json";
 const FALLBACK_ICON: &str = "icons/cloud_rain_heavy.svg";
 
 /// Fetches weather data and fills the SVG template, returning the processed SVG string.
-pub async fn build_weather_svg(lat: f64, lng: f64, location: &str) -> Result<String, Box<dyn std::error::Error>> {
+pub async fn build_weather_svg(
+    lat: f64,
+    lng: f64,
+    location: &str,
+) -> Result<String, Box<dyn std::error::Error>> {
     // Read template.svg
     let template_path = Path::new(TEMPLATE_SVG_PATH);
     let svg_content = fs::read_to_string(template_path)?;
@@ -33,7 +40,8 @@ pub async fn build_weather_svg(lat: f64, lng: f64, location: &str) -> Result<Str
 
     // Current weather values
     let current_temp = get_number(&weather, &["current", "temperature_2m"]).unwrap_or(0.0);
-    let current_apparent = get_number(&weather, &["current", "apparent_temperature"]).unwrap_or(current_temp);
+    let current_apparent =
+        get_number(&weather, &["current", "apparent_temperature"]).unwrap_or(current_temp);
     let current_code = get_number(&weather, &["current", "weather_code"]).unwrap_or(0.0) as u32;
 
     let today_max = get_daily_number(&weather, "temperature_2m_max", 0).unwrap_or(0.0);
@@ -46,8 +54,14 @@ pub async fn build_weather_svg(lat: f64, lng: f64, location: &str) -> Result<Str
     processed_svg = processed_svg
         .replace("{{location-day}}", &format!("{location}, {day_label}"))
         .replace("{{tmp}}", &format!("{:.0}°C", current_temp))
-        .replace("{{tmp-fl}}", &format!("Feels like {:.0}°C", current_apparent))
-        .replace("{{minmax}}", &format!("High {:.0}°C   Low {:.0}°C", today_max, today_min));
+        .replace(
+            "{{tmp-fl}}",
+            &format!("Feels like {:.0}°C", current_apparent),
+        )
+        .replace(
+            "{{minmax}}",
+            &format!("High {:.0}°C   Low {:.0}°C", today_max, today_min),
+        );
 
     let actual_icon = weather_code_to_icon(current_code, &icon_map);
     processed_svg = if processed_svg.contains("id=\"actual-icon\"") {
@@ -60,25 +74,74 @@ pub async fn build_weather_svg(lat: f64, lng: f64, location: &str) -> Result<Str
     let current_dt = NaiveDateTime::parse_from_str(current_time_str, "%Y-%m-%dT%H:%M")
         .unwrap_or_else(|_| chrono::Local::now().naive_local());
 
-    let hourly_times = weather["hourly"]["time"].as_array().cloned().unwrap_or_default().iter()
-        .map(|time_str| NaiveDateTime::parse_from_str(time_str.as_str().unwrap_or(""), "%Y-%m-%dT%H:%M").unwrap())
-        .map(|dt| dt <= current_dt + chrono::Duration::hours(24));
+    let hourly_times: Vec<serde_json::Value> = weather["hourly"]["time"]
+        .as_array()
+        .cloned()
+        .unwrap_or_default();
+    let hourly_temps: Vec<serde_json::Value> = weather["hourly"]["temperature_2m"]
+        .as_array()
+        .cloned()
+        .unwrap_or_default();
+    let hourly_precip: Vec<serde_json::Value> = weather["hourly"]["precipitation"]
+        .as_array()
+        .cloned()
+        .unwrap_or_default();
 
-    // filter based on time
-    let hourly_temps = weather["hourly"]["temperature_2m"].as_array().cloned().unwrap_or_default();
-    let hourly_precip = weather["hourly"]["precipitation"].as_array().cloned().unwrap_or_default();
+    // Collect mask into a Vec<bool> FIRST — avoids cloning a lazy iterator
+    let hourly_mask: Vec<bool> = hourly_times
+        .iter()
+        .map(|time_str| {
+            NaiveDateTime::parse_from_str(time_str.as_str().unwrap_or(""), "%Y-%m-%dT%H:%M")
+                .map(|dt| dt >= current_dt && dt <= current_dt + chrono::Duration::hours(24))
+                .unwrap_or(false)
+        })
+        .collect();
 
-    //plot("plot.svg").unwrap();
+    let temp_data: Vec<f64> = hourly_temps
+        .iter()
+        .zip(hourly_mask.iter().copied())
+        .filter_map(|(temp, mask)| if mask { temp.as_f64() } else { None })
+        .collect();
+
+    let precip_data: Vec<f64> = hourly_precip
+        .iter()
+        .zip(hourly_mask.iter().copied())
+        .filter_map(|(v, mask)| if mask { v.as_f64() } else { None })
+        .collect();
+
+    let hours: Vec<String> = hourly_times
+        .iter()
+        .zip(hourly_mask.iter().copied())
+        .filter_map(|(time, mask)| {
+            if mask {
+                time.as_str().and_then(|s| {
+                    let hour: u32 = s.split('T').nth(1)?.split(':').next()?.parse().ok()?;
+                    Some(match hour {
+                        0 => "12am".to_string(),
+                        1..=11 => format!("{}am", hour),
+                        12 => "12pm".to_string(),
+                        h => format!("{}pm", h - 12),
+                    })
+                })
+            } else {
+                None
+            }
+        })
+        .collect();
+    let hour_strs: Vec<&str> = hours.iter().map(String::as_str).collect();
+
+    plot(PLOT_SVG_PATH, &hour_strs, &temp_data, &precip_data).unwrap();
     processed_svg = replace_rect_with_svg(&processed_svg, "today-plot", "plot.svg").unwrap();
-
 
     // Fill in day1..day7 placeholders from daily forecast (day1 = tomorrow)
     for day_num in 1..=7 {
         let temp_max = get_daily_number(&weather, "temperature_2m_max", day_num).unwrap_or(0.0);
         let temp_min = get_daily_number(&weather, "temperature_2m_min", day_num).unwrap_or(0.0);
-        let weather_code = get_daily_number(&weather, "weather_code", day_num).unwrap_or(0.0) as u32;
+        let weather_code =
+            get_daily_number(&weather, "weather_code", day_num).unwrap_or(0.0) as u32;
         let precip_mm = get_daily_number(&weather, "precipitation_sum", day_num).unwrap_or(0.0);
-        let precip_pct = get_daily_number(&weather, "precipitation_probability_max", day_num).unwrap_or(0.0);
+        let precip_pct =
+            get_daily_number(&weather, "precipitation_probability_max", day_num).unwrap_or(0.0);
 
         let day_name = get_daily_string(&weather, "time", day_num)
             .and_then(|d| parse_weekday_short(&d))
@@ -178,11 +241,7 @@ fn get_number(json: &Value, path: &[&str]) -> Option<f64> {
 }
 
 fn get_daily_number(json: &Value, key: &str, idx: usize) -> Option<f64> {
-    json.get("daily")?
-        .get(key)?
-        .as_array()?
-        .get(idx)?
-        .as_f64()
+    json.get("daily")?.get(key)?.as_array()?.get(idx)?.as_f64()
 }
 
 fn get_daily_string(json: &Value, key: &str, idx: usize) -> Option<String> {
@@ -275,7 +334,9 @@ fn replace_rect_with_svg(
     );
 
     // Replace the rect element with the new group
-    Ok(rect_regex.replace(svg_content, replacement.as_str()).to_string())
+    Ok(rect_regex
+        .replace(svg_content, replacement.as_str())
+        .to_string())
 }
 
 /// Helper function to extract attribute value from an element string
@@ -292,39 +353,63 @@ fn extract_attribute(element: &str, attr_name: &str) -> Result<String, Box<dyn s
         .ok_or_else(|| format!("Attribute '{}' not found", attr_name).into())
 }
 
-fn plot(plot_path: &str) -> Result<(), Box<dyn std::error::Error>> {
+fn plot(
+    plot_path: &str,
+    hours: &[&str],
+    temp_data: &[f64],
+    precip_data: &[f64],
+) -> Result<(), Box<dyn std::error::Error>> {
     let root = SVGBackend::new(plot_path, (770, 130)).into_drawing_area();
-
     root.fill(&WHITE)?;
 
+    let temp_min = temp_data.iter().cloned().fold(f64::INFINITY, f64::min);
+    let temp_max = temp_data.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
+    let precip_max = precip_data.iter().cloned().fold(0.0f64, f64::max);
+
+    let temp_min = (temp_min - 1.0).floor();
+    let temp_max = (temp_max + 1.0).ceil();
+    let precip_max = (precip_max + 0.25).ceil();
+
+    let num_hours = hours.len();
+
     let mut chart = ChartBuilder::on(&root)
-        .x_label_area_size(10)
-        .y_label_area_size(10)
-        //.margin(5)
-        //.caption("Histogram Test", ("sans-serif", 50.0))
-        .build_cartesian_2d((0u32..10u32).into_segmented(), 0u32..10u32)?;
+        .x_label_area_size(20)
+        .y_label_area_size(35)
+        .right_y_label_area_size(35)
+        .build_cartesian_2d(0..num_hours, temp_min..temp_max)?
+        .set_secondary_coord(0..num_hours, 0.0..precip_max);
 
     chart
         .configure_mesh()
         .disable_x_mesh()
         .disable_y_mesh()
-        .bold_line_style(WHITE.mix(0.3))
-        //.y_desc("Count")
-        //.x_desc("Bucket")
-        .axis_desc_style(("sans-serif", 15))
+        .x_labels(num_hours)
+        .x_label_formatter(&|idx| hours.get(*idx).copied().unwrap_or("").to_string())
+        .y_desc("Temp (°C)")
+        .y_label_style(("sans-serif", 12).into_font().color(&RED))
+        .axis_desc_style(("sans-serif", 12).into_font().color(&RED))
         .draw()?;
 
-    let data = [
-        0u32, 1, 1, 1, 4, 2, 5, 7, 8, 6, 4, 2, 1, 8, 3, 3, 3, 4, 4, 3, 3, 3,
-    ];
+    chart
+        .configure_secondary_axes()
+        .y_desc("Precip [mm]")
+        .axis_desc_style(("sans-serif", 12).into_font().color(&BLACK.mix(0.7)))
+        .draw()?;
 
-    chart.draw_series(
-        Histogram::vertical(&chart)
-            .style(RED.mix(0.5).filled())
-            .data(data.iter().map(|x: &u32| (*x, 1))),
+    // Draw precipitation histogram on secondary axis
+    chart.draw_secondary_series(
+        Histogram::vertical(&chart.borrow_secondary())
+            .style(BLACK.mix(0.5).filled())
+            .margin(2)
+            .data(precip_data.iter().enumerate().map(|(i, &v)| (i, v))),
     )?;
 
-    root.present().expect("Unable to write result to file");
+    // Draw temperature line on primary axis
+    chart.draw_series(LineSeries::new(
+        temp_data.iter().enumerate().map(|(i, &v)| (i, v)),
+        RED.stroke_width(2),
+    ))?;
 
+    root.present()?;
     Ok(())
 }
