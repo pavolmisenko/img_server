@@ -1,5 +1,5 @@
 use image::ImageEncoder;
-use chrono::{Datelike, NaiveDate};
+use chrono::{Datelike, NaiveDate, NaiveDateTime};
 use regex::Regex;
 use serde_json::Value;
 use std::collections::HashMap;
@@ -55,8 +55,20 @@ pub async fn build_weather_svg(lat: f64, lng: f64, location: &str) -> Result<Str
     } else {
         replace_rect_with_svg(&processed_svg, "day0-icon", actual_icon)?
     };
+    // Filter hourly data for the upcoming 24 hours from current time
+    let current_time_str = weather["current"]["time"].as_str().unwrap_or("");
+    let current_dt = NaiveDateTime::parse_from_str(current_time_str, "%Y-%m-%dT%H:%M")
+        .unwrap_or_else(|_| chrono::Local::now().naive_local());
 
-    plot("plot.svg").unwrap();
+    let hourly_times = weather["hourly"]["time"].as_array().cloned().unwrap_or_default().iter()
+        .map(|time_str| NaiveDateTime::parse_from_str(time_str.as_str().unwrap_or(""), "%Y-%m-%dT%H:%M").unwrap())
+        .map(|dt| dt <= current_dt + chrono::Duration::hours(24));
+
+    // filter based on time
+    let hourly_temps = weather["hourly"]["temperature_2m"].as_array().cloned().unwrap_or_default();
+    let hourly_precip = weather["hourly"]["precipitation"].as_array().cloned().unwrap_or_default();
+
+    //plot("plot.svg").unwrap();
     processed_svg = replace_rect_with_svg(&processed_svg, "today-plot", "plot.svg").unwrap();
 
 
