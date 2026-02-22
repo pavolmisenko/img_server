@@ -1,5 +1,9 @@
+use chrono::{Datelike, NaiveDate, NaiveDateTime};
 use image::ImageEncoder;
+use plotters::prelude::*;
 use regex::Regex;
+use serde_json::Value;
+use std::collections::HashMap;
 use std::fs;
 use std::io::Cursor;
 use std::path::Path;
@@ -10,45 +14,178 @@ use usvg::{Options, Tree};
 // Display template
 const TEMPLATE_SVG_PATH: &str = "weather_template.svg";
 
-// Icons templates
-const CLOUD_SNOW: &str = "cloud_snow.svg";
-const CLOUD_RAIN: &str = "cloud_rain.svg";
+// 24 hour plot
+const PLOT_SVG_PATH: &str = "plot.svg";
 
-pub fn generate_image() -> Result<Vec<u8>, Box<dyn std::error::Error>> {
+// Descriptions / icon mapping
+const DESCRIPTIONS_PATH: &str = "descriptions.json";
+const FALLBACK_ICON: &str = "icons/cloud_rain_heavy.svg";
+
+/// Fetches weather data and fills the SVG template, returning the processed SVG string.
+pub async fn build_weather_svg(
+    lat: f64,
+    lng: f64,
+    location: &str,
+) -> Result<String, Box<dyn std::error::Error>> {
     // Read template.svg
     let template_path = Path::new(TEMPLATE_SVG_PATH);
     let svg_content = fs::read_to_string(template_path)?;
 
-    // TBD - download weather data and process it (use open-meteo-rs crate)
+    // Fetch weather data from open-meteo
+    let weather = fetch_weather(lat, lng).await?;
+    let icon_map = load_icon_map()?;
 
-    // Replace text placeholders
-    let mut processed_svg = svg_content
-        .replace("{{Den}}", "Pondelol")
-        .replace("{{Teplota}}", "15°C");
+    // Replace location placeholder
+    let mut processed_svg = svg_content;
 
-    // Replace the day1-icon rectangle with the snow icon
-    processed_svg = replace_rect_with_svg(&processed_svg, "day1-icon", "snow-icon.svg")?;
+    // Current weather values
+    let current_temp = get_number(&weather, &["current", "temperature_2m"]).unwrap_or(0.0);
+    let current_apparent =
+        get_number(&weather, &["current", "apparent_temperature"]).unwrap_or(current_temp);
+    let current_code = get_number(&weather, &["current", "weather_code"]).unwrap_or(0.0) as u32;
 
-    // Parse SVG
+    let today_max = get_daily_number(&weather, "temperature_2m_max", 0).unwrap_or(0.0);
+    let today_min = get_daily_number(&weather, "temperature_2m_min", 0).unwrap_or(0.0);
+
+    let day_label = get_daily_string(&weather, "time", 0)
+        .and_then(|d| parse_weekday_short(&d))
+        .unwrap_or_else(|| "Today".to_string());
+
+    processed_svg = processed_svg
+        .replace("{{location-day}}", &format!("{location}, {day_label}"))
+        .replace("{{tmp}}", &format!("{:.0}°C", current_temp))
+        .replace(
+            "{{tmp-fl}}",
+            &format!("Feels like {:.0}°C", current_apparent),
+        )
+        .replace(
+            "{{minmax}}",
+            &format!("High {:.0}°C   Low {:.0}°C", today_max, today_min),
+        );
+
+    let actual_icon = weather_code_to_icon(current_code, &icon_map);
+    processed_svg = if processed_svg.contains("id=\"actual-icon\"") {
+        replace_rect_with_svg(&processed_svg, "actual-icon", actual_icon)?
+    } else {
+        replace_rect_with_svg(&processed_svg, "day0-icon", actual_icon)?
+    };
+    // Filter hourly data for the upcoming 24 hours from current time
+    let current_time_str = weather["current"]["time"].as_str().unwrap_or("");
+    let current_dt = NaiveDateTime::parse_from_str(current_time_str, "%Y-%m-%dT%H:%M")
+        .unwrap_or_else(|_| chrono::Local::now().naive_local());
+
+    let hourly_times: Vec<serde_json::Value> = weather["hourly"]["time"]
+        .as_array()
+        .cloned()
+        .unwrap_or_default();
+    let hourly_temps: Vec<serde_json::Value> = weather["hourly"]["temperature_2m"]
+        .as_array()
+        .cloned()
+        .unwrap_or_default();
+    let hourly_precip: Vec<serde_json::Value> = weather["hourly"]["precipitation"]
+        .as_array()
+        .cloned()
+        .unwrap_or_default();
+
+    // Collect mask into a Vec<bool> FIRST — avoids cloning a lazy iterator
+    let hourly_mask: Vec<bool> = hourly_times
+        .iter()
+        .map(|time_str| {
+            NaiveDateTime::parse_from_str(time_str.as_str().unwrap_or(""), "%Y-%m-%dT%H:%M")
+                .map(|dt| dt >= current_dt && dt <= current_dt + chrono::Duration::hours(24))
+                .unwrap_or(false)
+        })
+        .collect();
+
+    let temp_data: Vec<f64> = hourly_temps
+        .iter()
+        .zip(hourly_mask.iter().copied())
+        .filter_map(|(temp, mask)| if mask { temp.as_f64() } else { None })
+        .collect();
+
+    let precip_data: Vec<f64> = hourly_precip
+        .iter()
+        .zip(hourly_mask.iter().copied())
+        .filter_map(|(v, mask)| if mask { v.as_f64() } else { None })
+        .collect();
+
+    let hours: Vec<String> = hourly_times
+        .iter()
+        .zip(hourly_mask.iter().copied())
+        .filter_map(|(time, mask)| {
+            if mask {
+                time.as_str().and_then(|s| {
+                    let hour: u32 = s.split('T').nth(1)?.split(':').next()?.parse().ok()?;
+                    Some(match hour {
+                        0 => "12am".to_string(),
+                        1..=11 => format!("{}am", hour),
+                        12 => "12pm".to_string(),
+                        h => format!("{}pm", h - 12),
+                    })
+                })
+            } else {
+                None
+            }
+        })
+        .collect();
+    let hour_strs: Vec<&str> = hours.iter().map(String::as_str).collect();
+
+    plot(PLOT_SVG_PATH, &hour_strs, &temp_data, &precip_data).unwrap();
+    processed_svg = replace_rect_with_svg(&processed_svg, "today-plot", "plot.svg").unwrap();
+
+    // Fill in day1..day7 placeholders from daily forecast (day1 = tomorrow)
+    for day_num in 1..=7 {
+        let temp_max = get_daily_number(&weather, "temperature_2m_max", day_num).unwrap_or(0.0);
+        let temp_min = get_daily_number(&weather, "temperature_2m_min", day_num).unwrap_or(0.0);
+        let weather_code =
+            get_daily_number(&weather, "weather_code", day_num).unwrap_or(0.0) as u32;
+        let precip_mm = get_daily_number(&weather, "precipitation_sum", day_num).unwrap_or(0.0);
+        let precip_pct =
+            get_daily_number(&weather, "precipitation_probability_max", day_num).unwrap_or(0.0);
+
+        let day_name = get_daily_string(&weather, "time", day_num)
+            .and_then(|d| parse_weekday_short(&d))
+            .unwrap_or_else(|| "--".to_string());
+        let icon = weather_code_to_icon(weather_code, &icon_map);
+        let prefix = format!("day{}", day_num);
+
+        processed_svg = processed_svg
+            .replace(&format!("{{{{{}-day}}}}", prefix), &day_name)
+            .replace(
+                &format!("{{{{{}-minmax}}}}", prefix),
+                &format!("{:.0}°C / {:.0}°C", temp_max, temp_min),
+            )
+            .replace(
+                &format!("{{{{{}-precip}}}}", prefix),
+                &format!("{:.0}% [{:.1}]", precip_pct, precip_mm),
+            );
+
+        let icon_rect_id = format!("{}-icon", prefix);
+        processed_svg = replace_rect_with_svg(&processed_svg, &icon_rect_id, icon)?;
+    }
+
+    Ok(processed_svg)
+}
+
+/// Renders an SVG string to a BMP-encoded byte buffer.
+///
+/// tiny-skia uses premultiplied RGBA8888. For opaque images (common here)
+/// this is equivalent to straight alpha, so no explicit demultiplication is needed.
+/// The `image` crate encodes the result as a BMP compatible with embedded_graphics tinybmp.
+pub fn svg_to_bmp(svg_content: &str) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
     let mut fontdb = usvg::fontdb::Database::new();
     fontdb.load_system_fonts();
 
     let mut opt = Options::default();
     opt.fontdb = Arc::new(fontdb);
 
-    let tree = Tree::from_str(&processed_svg, &opt)?;
+    let tree = Tree::from_str(svg_content, &opt)?;
 
-    // Render to Pixmap
     let size = tree.size().to_int_size();
     let mut pixmap = Pixmap::new(size.width(), size.height()).ok_or("Failed to create pixmap")?;
 
     resvg::render(&tree, Transform::default(), &mut pixmap.as_mut());
 
-    // Convert to BMP
-    // tiny-skia utilizes premultiplied RGBA8888.
-    // Ideally, we should demultiply, but efficient demultiplication is non-trivial without extra deps
-    // or iteration. For opaque images (common in this usecase), it's identical.
-    // We use the `image` crate to encode to BMP, which is compatible with embedded_graphics tinybmp.
     let mut bmp_data = Vec::new();
     let mut cursor = Cursor::new(&mut bmp_data);
 
@@ -63,6 +200,88 @@ pub fn generate_image() -> Result<Vec<u8>, Box<dyn std::error::Error>> {
     Ok(bmp_data)
 }
 
+/// Fetches weather forecast data from open-meteo for the given coordinates.
+async fn fetch_weather(lat: f64, lng: f64) -> Result<Value, Box<dyn std::error::Error>> {
+    let client = reqwest::Client::new();
+    let url = "https://api.open-meteo.com/v1/forecast";
+
+    let response = client
+        .get(url)
+        .query(&[
+            ("latitude", lat.to_string()),
+            ("longitude", lng.to_string()),
+            ("forecast_days", "8".to_string()),
+            (
+                "daily",
+                "temperature_2m_max,temperature_2m_min,precipitation_sum,weather_code,precipitation_probability_max".to_string(),
+            ),
+            (
+                "current",
+                "relative_humidity_2m,temperature_2m,apparent_temperature,weather_code".to_string(),
+            ),
+            (
+                "hourly",
+                "temperature_2m,precipitation_probability,precipitation".to_string(),
+            ),
+            ("timezone", "auto".to_string()),
+        ])
+        .send()
+        .await?
+        .error_for_status()?;
+
+    Ok(response.json::<Value>().await?)
+}
+
+fn get_number(json: &Value, path: &[&str]) -> Option<f64> {
+    let mut node = json;
+    for segment in path {
+        node = node.get(*segment)?;
+    }
+    node.as_f64()
+}
+
+fn get_daily_number(json: &Value, key: &str, idx: usize) -> Option<f64> {
+    json.get("daily")?.get(key)?.as_array()?.get(idx)?.as_f64()
+}
+
+fn get_daily_string(json: &Value, key: &str, idx: usize) -> Option<String> {
+    json.get("daily")?
+        .get(key)?
+        .as_array()?
+        .get(idx)?
+        .as_str()
+        .map(ToString::to_string)
+}
+
+fn parse_weekday_short(date_str: &str) -> Option<String> {
+    let date = NaiveDate::parse_from_str(date_str, "%Y-%m-%d").ok()?;
+    Some(date.weekday().to_string().chars().take(3).collect())
+}
+
+/// Loads the weather code → icon path mapping from descriptions.json.
+fn load_icon_map() -> Result<HashMap<u32, String>, Box<dyn std::error::Error>> {
+    let content = fs::read_to_string(DESCRIPTIONS_PATH)?;
+    let json: serde_json::Value = serde_json::from_str(&content)?;
+    let mut map = HashMap::new();
+    if let Some(obj) = json.as_object() {
+        for (key, val) in obj {
+            if let Ok(code) = key.parse::<u32>() {
+                if let Some(image) = val.pointer("/day/image").and_then(|v| v.as_str()) {
+                    map.insert(code, image.to_string());
+                }
+            }
+        }
+    }
+    Ok(map)
+}
+
+/// Returns the icon SVG path for the given WMO weather code, falling back to FALLBACK_ICON.
+fn weather_code_to_icon<'a>(code: u32, icon_map: &'a HashMap<u32, String>) -> &'a str {
+    icon_map
+        .get(&code)
+        .map(|s| s.as_str())
+        .unwrap_or(FALLBACK_ICON)
+}
 
 /// Replaces a rectangle element with an SVG icon, scaled to match the rectangle's dimensions
 fn replace_rect_with_svg(
@@ -115,7 +334,9 @@ fn replace_rect_with_svg(
     );
 
     // Replace the rect element with the new group
-    Ok(rect_regex.replace(svg_content, replacement.as_str()).to_string())
+    Ok(rect_regex
+        .replace(svg_content, replacement.as_str())
+        .to_string())
 }
 
 /// Helper function to extract attribute value from an element string
@@ -124,10 +345,71 @@ fn extract_attribute(element: &str, attr_name: &str) -> Result<String, Box<dyn s
     // e.g., avoid matching "stroke-width" when looking for "width"
     let pattern = format!(r#"[\s]{}=["']([^"']+)["']"#, regex::escape(attr_name));
     let regex = Regex::new(&pattern)?;
-    
+
     regex
         .captures(element)
         .and_then(|cap| cap.get(1))
         .map(|m| m.as_str().trim_end_matches("px").to_string())
         .ok_or_else(|| format!("Attribute '{}' not found", attr_name).into())
+}
+
+fn plot(
+    plot_path: &str,
+    hours: &[&str],
+    temp_data: &[f64],
+    precip_data: &[f64],
+) -> Result<(), Box<dyn std::error::Error>> {
+    let root = SVGBackend::new(plot_path, (770, 130)).into_drawing_area();
+    root.fill(&WHITE)?;
+
+    let temp_min = temp_data.iter().cloned().fold(f64::INFINITY, f64::min);
+    let temp_max = temp_data.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
+    let precip_max = precip_data.iter().cloned().fold(0.0f64, f64::max);
+
+    let temp_min = (temp_min - 1.0).floor();
+    let temp_max = (temp_max + 1.0).ceil();
+    let precip_max = (precip_max + 0.25).ceil();
+
+    let num_hours = hours.len();
+
+    let mut chart = ChartBuilder::on(&root)
+        .x_label_area_size(20)
+        .y_label_area_size(35)
+        .right_y_label_area_size(35)
+        .build_cartesian_2d(0..num_hours, temp_min..temp_max)?
+        .set_secondary_coord(0..num_hours, 0.0..precip_max);
+
+    chart
+        .configure_mesh()
+        .disable_x_mesh()
+        .disable_y_mesh()
+        .x_labels(num_hours)
+        .x_label_formatter(&|idx| hours.get(*idx).copied().unwrap_or("").to_string())
+        .y_desc("Temp (°C)")
+        .y_label_style(("sans-serif", 12).into_font().color(&RED))
+        .axis_desc_style(("sans-serif", 12).into_font().color(&RED))
+        .draw()?;
+
+    chart
+        .configure_secondary_axes()
+        .y_desc("Precip [mm]")
+        .axis_desc_style(("sans-serif", 12).into_font().color(&BLACK.mix(0.7)))
+        .draw()?;
+
+    // Draw precipitation histogram on secondary axis
+    chart.draw_secondary_series(
+        Histogram::vertical(&chart.borrow_secondary())
+            .style(BLACK.mix(0.5).filled())
+            .margin(2)
+            .data(precip_data.iter().enumerate().map(|(i, &v)| (i, v))),
+    )?;
+
+    // Draw temperature line on primary axis
+    chart.draw_series(LineSeries::new(
+        temp_data.iter().enumerate().map(|(i, &v)| (i, v)),
+        RED.stroke_width(2),
+    ))?;
+
+    root.present()?;
+    Ok(())
 }
