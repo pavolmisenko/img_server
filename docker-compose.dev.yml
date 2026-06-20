@@ -1,0 +1,4 @@
+services:
+  img_server:
+    build: .
+    image: img_server:dev
