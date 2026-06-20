@@ -93,3 +93,38 @@ The server listens on **port 3000** and binds to all interfaces, so other device
 | `plotters`             | 24-hour forecast chart generation        |
 | `chrono`               | Date/time parsing and weekday formatting |
 | `regex`                | SVG content manipulation                 |
+
+## Deployment
+
+### Docker (local)
+
+```bash
+# Run the published image
+docker compose up -d
+
+# Build and run locally (development)
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
+```
+
+### Unraid (Compose Manager)
+
+1. In Unraid, install the **Compose Manager** plugin via Community Applications.
+2. Go to **Docker → Compose → Add Stack**, name it `img_server`.
+3. Paste the contents of `docker-compose.yml` into the editor.
+4. Click **Pull** then **Start**.
+
+The server binds port `3000` on the Unraid host. The ESP32 display calls:
+
+```
+http://<unraid-ip>:3000/fetch_bitmap?lat=<lat>&lng=<lng>&location=<name>
+```
+
+### Releases
+
+The CI workflow in `.github/workflows/docker.yml` builds and pushes
+`ghcr.io/pavolmisenko/img_server:latest` automatically on every push to
+`main` that changes source files. Push a `v*.*.*` tag to also produce
+pinned semver image tags (e.g. `1.2.3`).
+
+To trigger a build manually (e.g. without a code change), use
+**Actions → Build and push Docker image → Run workflow** on GitHub.
