@@ -1,0 +1,7 @@
+target/
+.git/
+.venv/
+scripts/
+plot.svg
+TODO.txt
+*.md

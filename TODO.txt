@@ -1,0 +1,2 @@
+1. Finish repository
+2. Create githib action that will bundle this as docker and publishes it somewhere
