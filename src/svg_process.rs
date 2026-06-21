@@ -378,15 +378,14 @@ fn plot(
             .disable_y_mesh()
             .x_labels(num_hours)
             .x_label_formatter(&|idx| hours.get(*idx).copied().unwrap_or("").to_string())
-            .y_desc("Temp (°C)")
-            .y_label_style(("sans-serif", 12).into_font().color(&RED))
-            .axis_desc_style(("sans-serif", 12).into_font().color(&RED))
+            .x_label_style(("sans-serif", 14).into_font().color(&BLACK))
+            .y_label_style(("sans-serif", 14).into_font().color(&RED))
+            .axis_desc_style(("sans-serif", 14).into_font().color(&RED))
             .draw()?;
 
         chart
             .configure_secondary_axes()
-            .y_desc("Precip [mm]")
-            .axis_desc_style(("sans-serif", 12).into_font().color(&BLACK.mix(0.7)))
+            .label_style(("sans-serif", 14).into_font().color(&BLACK))
             .draw()?;
 
         chart.draw_secondary_series(
