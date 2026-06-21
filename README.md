@@ -128,3 +128,11 @@ pinned semver image tags (e.g. `1.2.3`).
 
 To trigger a build manually (e.g. without a code change), use
 **Actions → Build and push Docker image → Run workflow** on GitHub.
+
+### Development workflow
+
+All new development should happen on a separate branch. Only merge to `main`
+when the work is complete and tested — every merge to `main` that touches
+source files triggers a new Docker build and deployment to the running Unraid
+container. Working directly on `main` will cause partial or broken images to
+be pushed mid-development.
