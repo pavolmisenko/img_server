@@ -17,6 +17,7 @@ struct BitmapParams {
     lat: f64,
     lng: f64,
     location: String,
+    bat_volt: f64,
 }
 
 #[tokio::main]
@@ -68,10 +69,13 @@ async fn fetch_bitmap(
     if params.location.is_empty() || params.location.len() > 100 {
         return (StatusCode::BAD_REQUEST, "location must be 1–100 characters").into_response();
     }
+    if !(-5.0..=30.0).contains(&params.bat_volt) {
+        return (StatusCode::BAD_REQUEST, "bat_volt must be between -5 and 30").into_response();
+    }
 
-    info!(lat = params.lat, lng = params.lng, location = %params.location, "Handling bitmap request");
+    info!(lat = params.lat, lng = params.lng, location = %params.location, bat_volt = params.bat_volt, "Handling bitmap request");
 
-    let svg = match svg_process::build_weather_svg(params.lat, params.lng, &params.location, &state).await {
+    let svg = match svg_process::build_weather_svg(params.lat, params.lng, &params.location, params.bat_volt, &state).await {
         Ok(svg) => svg,
         Err(e) => {
             error!("Error building weather SVG: {e}");

@@ -55,6 +55,7 @@ pub async fn build_weather_svg(
     lat: f64,
     lng: f64,
     location: &str,
+    bat_volt: f64,
     state: &AppState,
 ) -> Result<String, Box<dyn std::error::Error>> {
     let weather = fetch_weather(lat, lng).await?;
@@ -77,7 +78,8 @@ pub async fn build_weather_svg(
         .replace("{{location-day}}", &format!("{location}, {day_label}"))
         .replace("{{tmp}}", &format!("{:.0}°C", current_temp))
         .replace("{{tmp-fl}}", &format!("Feels like {:.0}°C", current_apparent))
-        .replace("{{minmax}}", &format!("High {:.0}°C   Low {:.0}°C", today_max, today_min));
+        .replace("{{minmax}}", &format!("High {:.0}°C   Low {:.0}°C", today_max, today_min))
+        .replace("{{bat-volt}}", &format!("{:.2}V", bat_volt));
 
     let actual_icon = weather_code_to_icon(current_code, &state.icon_map);
     let icon_id = if svg.contains("id=\"actual-icon\"") { "actual-icon" } else { "day0-icon" };
@@ -403,4 +405,16 @@ fn plot(
         root.present()?;
     }
     Ok(svg_buf)
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn bat_volt_placeholder_is_replaced() {
+        let svg = "voltage: {{bat-volt}} end";
+        let bat_volt = 3.7_f64;
+        let result = svg.replace("{{bat-volt}}", &format!("{:.2}V", bat_volt));
+        assert!(!result.contains("{{bat-volt}}"));
+        assert!(result.contains("3.70V"));
+    }
 }
